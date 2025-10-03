@@ -1,0 +1,244 @@
+---
+title: "LuthraSauravPS5A"
+author: "Saurav Luthra"
+date: "2025-04-05"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 5A
+
+## =========== OVERVIEW ===========
+
+**HP :** Helmerich & Payne, Inc. (NYSE)
+
+**PDS :** Precision Drilling Corporation (NYSE)
+
+## =========== SETUP ===========
+
+```{r IMPORTS, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(copula)
+library(data.table)
+library(fGarch) 
+library(ggplot2)
+library(MASS)
+library(mnormt)
+library(quantmod)
+
+```
+
+```{r SETUP, warning=FALSE}
+
+# ==============================================================================
+# GET PRICE DATA, LOG-RETURNS, ETC.
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+HP_prices <- (HP$HP.Adjusted)
+HP_log_returns <- as.vector(diff(log(HP_prices))[-1])
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+PDS_prices <- (PDS$PDS.Adjusted)
+PDS_log_returns <- as.vector(diff(log(PDS_prices))[-1])
+
+n <- length(HP_log_returns)
+cor_tau = cor(HP_log_returns, PDS_log_returns, method="kendall")
+
+# ==============================================================================
+# UNIVARIATE T-DISTRIBUTIONS
+
+est_HP = as.numeric(fitdistr(HP_log_returns, "t")$estimate)
+std_HP <- est_HP[2] * sqrt(est_HP[3] / (est_HP[3] - 2))
+
+est_PDS = as.numeric(fitdistr(PDS_log_returns, "t")$estimate)
+std_PDS <- est_PDS[2] * sqrt(est_PDS[3] / (est_PDS[3] - 2))
+
+# ==============================================================================
+# UNIFORM-TRANSFORMED DATA
+
+data1 = cbind(pstd(HP_log_returns, est_HP[1], std_HP, est_HP[3]), pstd(PDS_log_returns, est_PDS[1], std_PDS, est_PDS[3]))
+
+```
+
+## =========== QUESTION 1 ===========
+
+#### [**Empirical Copula of HP & PDS Log Returns**]
+
+Compared to the Clayton Copula, the Empirical Copula's contour lines
+suggest a higher cumulative probability towards the middle of the
+uniform-transformed bivariate distribution. At the 0.1, 0.2, 0.3, and
+0.4 contour lines, the red contour lines are inside (higher than) the
+Clayton Copula's line. At the 0.9, 0.8, 0.7, and 0.6 contour lines, the
+red contour lines are also inside (lower than) the Clayton copula's
+contour lines. This means that the tail dependence isn't as high as the
+Clayton copula might suggest, and that most of these bivariate
+observations are actually found in a 'tighter' region/band in middle
+area of the 2D distribution. Generally, the contour lines are quite
+similar and close to each other, so the surfaces have a very similar
+shape (generated with the 'persp' command).
+
+```{r QUESTION_1, warning=FALSE}
+
+# ==============================================================================
+# SETUP
+
+# define a grid of (u,v) values
+u_vals = seq(0, 1, length.out = 50)  # 50 points from 0 to 1
+v_vals = seq(0, 1, length.out = 50)  
+
+# create a meshgrid of all (u,v) pairs
+grid = expand.grid(u_vals, v_vals)
+colnames(grid) = c("u", "v")
+
+nr = length(u_vals) 
+nc = length(v_vals)
+
+# ==============================================================================
+# FIT THE CLAYTON COPULA, OUTPUT ESTIMATED PARAMETERS & STANDARD ERRORS
+
+fclayton = fitCopula(copula=claytonCopula(1,dim=2),data=data1, method="ml")
+
+cat("\n------------------------------\n")
+cat("Clayton Copula:")
+cat("\n------------------------------\n")
+cat(sprintf("Parameter: Estimate = %.4f, SE = %.4f\n", coef(fclayton), sqrt(diag(vcov(fclayton)))))
+
+# ==============================================================================
+# CLAYTON COPULA CONTOUR CDF DIAGRAM
+
+cdf_vals_clayton = pCopula(as.matrix(grid), copula = fclayton@copula)
+cdf_matrix_clayton = matrix(cdf_vals_clayton, nrow = nr, ncol = nc)
+par(pty = "s")
+contour(u_vals, v_vals, cdf_matrix_clayton, xlab="HP Log-Returns", ylab="PDS Log-Returns", main="Contour of Clayton Copula CDF (Black) vs. Empirical Copula (Red)")
+
+# ==============================================================================
+# CREATE AND DISPLAY THE EMPIRICAL COPULA
+
+Udex = (1:n)/(n+1)
+
+eval_pts = cbind(rep(Udex,n), rep(Udex,each=n))
+
+Cn = C.n(u=eval_pts, X=data1) # method="C"
+
+# EmpCop = expression(contour(Udex, Udex, matrix(Cn, n, n), col = 2, add = TRUE))
+contour(Udex, Udex, matrix(Cn, n, n), col = 2, add = TRUE)
+
+# ==============================================================================
+# DISPLAY THE 3D CDF SURFACE OF EACH COPULA
+
+persp(u_vals, v_vals, cdf_matrix_clayton, main="Clayton Copula CDF")
+persp(Udex, Udex, matrix(Cn, n, n), main="Empirical Copula CDF")
+
+```
+
+## =========== QUESTION 2 ===========
+
+#### [**Clayton Copula PDF vs Kernel Density Estimate of HP & PDS Log-Returns**]
+
+The Clayton Copula Probability Density Function (PDF) and the Kernel
+Density Estimate PDF are both plotted and compared, and turned out to
+have very different characteristics. The Clayton Copula has a much
+stronger emphasis on the relationships between the tails of the
+distributions (strong correlations near (1,1) and (0,0)). There's 2
+distinct peaks there indicating that there is a very high probability of
+HP and PDS jointly (quantile pairs) moving down strongly or up strongly
+at the same time. The PDF surface is much more "sparse" towards the
+center. Interestingly, the KDE Copula PDF has 3 "mountain peaks", all
+along the V=U line. According to the KDE, the joint probability is
+strongest near strong moves up (1,1), strong moves down (0,0), and moves
+that are slightly positive (0.6,0.6). Since the count of moves up/moves
+down is nearly balanced, we can approximately say that (0.6,0.6) on the
+uniform-transformed scale probably corresponds to the numerous and
+common instances where the stocks moderately and consistently drift
+upwards in price jointly.
+
+```{r QUESTION_2, warning=FALSE}
+
+contour(claytonCopula(param=fclayton@estimate[1], dim=2), dCopula, main="Clayton Copula PDF", nlevels=25, xlab="U", ylab="V")
+
+contour(kde2d(data1[,1], data1[,2]), dCopula, main="KDE Copula PDF", nlevels=25, xlab="U", ylab="V")
+
+```
+
+## =========== QUESTION 3 ===========
+
+#### [**Estimating** $\hat{\alpha}$ Using Bootstrapping Technique]
+
+To optimize the risk (when risk is defined as the variance of
+log-returns) of a joint portfolio of HP (**x**) and PDS (**y**), we aim
+to estimate a proportion of our protfolio to allocate to **x** (α), and
+the proportion of the portfolio to allocate to **y** (1 - α). This
+estimate is $\hat{\alpha}$ (α-hat), and is derived to be given by the
+following formula:
+
+$$
+\alpha = \frac{\sigma_y - \sigma_{xy}}{\sigma_x + \sigma_y - 2\sigma_{xy}}
+$$
+
+Since there is no feasible way to know the true variance (population
+parameters) of the log-returns of x or y, we need to estimate them using
+sampling. The sample variances are used instead to compute an estimate
+for α, according to:
+
+$$
+\hat{\alpha} = \frac{s_y - s_{xy}}{s_x + s_y - 2s_{xy}}
+$$
+
+We randomly sample from the original dataset, with replacement, using
+the bootstrap technique to generate 10,000 estimates for α. The α
+estimate was 0.631976, with a variance of 0.0002054809, and Standard
+Deviation of 0.0143346. This investigation suggests that with 95% confidence
+the ideal amount to invest in HP (x) is between 61.8% - 64.6% [63.2% ± 1.4% (2 s.d)] in order to minimize the portfolio's risk (variance of log-returns).
+
+```{r QUESTION_3, warning=FALSE}
+
+# ==============================================================================
+# SETUP
+
+set.seed(305)
+
+sample_size <- 50000
+iterations <- 10000
+
+log_returns_matrix <- cbind(HP_log_returns, PDS_log_returns)
+alpha_hat_list <- rep(0, iterations)
+
+for (i in 1:iterations){
+
+  # randomly sample row indices with replacement
+  sample_indices <- sample(1:nrow(log_returns_matrix), size = sample_size, replace = TRUE)
+  
+  # create a new matrix with the selected rows
+  sampled_matrix <- log_returns_matrix[sample_indices, ]
+
+  # get the sample stats
+  sx  <- var(sampled_matrix[,1])
+  sy  <- var(sampled_matrix[,2])
+  sxy <- cov(sampled_matrix[,1], sampled_matrix[,2])
+  
+  # get estimate for α-hat based on the random sample
+  alpha_hat <- (sy - sxy)/(sx + sy - 2*sxy)
+  alpha_hat_list[i] <- alpha_hat
+}
+
+# histogram of α-hat estimates
+hist(alpha_hat_list,breaks = 25, main="Histogram of α-Hat Estimates")
+
+# add vertical lines at mean and +- 1 standard deviation)
+abline(v = mean(alpha_hat_list), col = "red", lwd = 2)  # Mean
+abline(v = mean(alpha_hat_list) + sd(alpha_hat_list), col = "blue", lwd = 2, lty = 2)  
+abline(v = mean(alpha_hat_list) - sd(alpha_hat_list), col = "blue", lwd = 2, lty = 2)  
+
+cat("α-Hat Estimate:\n")
+cat(mean(alpha_hat_list))
+cat("\nVariance of α-Hat Estimate:\n")
+cat(var(alpha_hat_list))
+cat("\nStd Dev of α-Hat Estimate:\n")
+cat(sd(alpha_hat_list))
+```

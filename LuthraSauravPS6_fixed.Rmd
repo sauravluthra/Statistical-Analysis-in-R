@@ -1,0 +1,350 @@
+---
+title: "LuthraSauravPS6"
+author: "Saurav Luthra"
+date: "2025-04-27"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 6
+
+## =========== OVERVIEW ===========
+
+## =========== SETUP ===========
+
+```{r IMPORTS, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(quantmod)
+```
+
+## =========== QUESTION 1 ===========
+
+#### [**ARCH(1) Process - Xt**]
+
+We have that,
+
+$\{\varepsilon_t\}_{t=-\infty}^{\infty}$ is defined by:
+
+$$
+\epsilon_t \sim \mathcal{N}(0, 1), i.i.d.
+$$
+
+$\{X_t\}$ is defined by:
+
+$$
+X_t = \varepsilon_t \cdot \sqrt{1 + \left(0.5 X_{t-1}\right)^2}
+$$
+
+$\{X_t\}$ is a weakly stationary process and satisfies the form of an
+ARCH(1) (Auto Regressive Conditional Heteroskedasticity) model with
+parameter $\alpha = 0.5$.
+
+In this simulation, two separate realizations of an ARCH(1) process were
+generated using 1000 time steps each, starting from an initial value of
+0. The process includes a parameter $\alpha = 0.5$, which determines how
+strongly the current conditional variance depends on the previous
+observation. Each realization incorporates random shocks sampled
+randomly and independently from a standard normal distribution, leading
+to a time series with volatility that varies over time. While the
+process produces a conditional variance that varies with time, the
+series itself does not exhibit serial correlation in its raw values.
+This behavior is characteristic of ARCH models, which are designed to
+capture volatility clustering (periods where large changes tend to be
+followed by more large changes and small changes tend to be followed by
+more small changes) even though the raw values may appear uncorrelated.
+The sample autocorrelation functions both show a large spike at lag 0,
+which is expected, given the perfect correlation of the series with
+itself. Subsequent lags remain within the significance bounds,
+indicating no statistically significant autocorrelation in the levels of
+the series. This is consistent with the behavior of an ARCH(1) process.
+
+ARCH models, including the one simulated here, are generally weakly
+stationary, meaning that their mean and variance remain constant over
+time and their autocovariance depends only on the lag between
+observations, not on the specific time points. This differs from strict
+stationarity, which requires the full joint distribution to be invariant
+to shifts in time. To assess the presence of autocorrelation in the
+simulated series, the Ljung-Box test was applied to both realizations at
+lags 5, 10, and 15. In all cases, the resulting p-values were well above
+the 0.05 significance threshold, indicating no evidence of linear
+autocorrelation in the series. This outcome aligns with the theoretical
+expectations for ARCH processes, where despite a lack of correlation in
+the series values, the squared values often have significant
+autocorrelation.
+
+```{r QUESTION_1A, warning=FALSE}
+
+# ==============================================================================
+# SIMULATION OF 2 Xt REALIZATIONS FOR 1000 STEPS
+
+# setup
+set.seed(416)  
+n <- 1000
+alpha <- 0.5
+
+# vectors for the 2 realizations
+X1 <- numeric(n)
+X2 <- numeric(n)
+
+# initial values
+X1[1] <- 0
+X2[1] <- 0
+
+# simulate the process from t=2 to t=1000
+for (t in 2:n) {
+  
+  # epsilon values
+  eps1 <- rnorm(1)
+  eps2 <- rnorm(1)
+  
+  # X values
+  X1[t] <- eps1 * sqrt(1 + (alpha * X1[t - 1])^2)
+  X2[t] <- eps2 * sqrt(1 + (alpha * X2[t - 1])^2)
+}
+
+# plot 2 realizations
+ts.plot(X1, col = "blue", main = "ARCH(1) Realization 1 of Xt", ylab = "Xt", xlab = "t")
+ts.plot(X2, col = "red",  main = "ARCH(1) Realization 2 of Xt", ylab = "Xt", xlab = "t")
+
+# plot autocorrelation functions of 2 realizations
+acf(X1, main = "ACF of Realization 1 of Xt", col = "blue", lwd = 2)
+acf(X2, main = "ACF of Realization 2 of Xt", col = "red", lwd = 2)
+
+```
+
+```{r QUESTION_1B, warning=FALSE}
+
+# ==============================================================================
+# LJUNG-BOX TESTS ON 2 REALIZATIONS OF Xt
+
+Box.test(X1, lag = 5, type = "Ljung-Box")
+Box.test(X2, lag = 5, type = "Ljung-Box")
+
+Box.test(X1, lag = 10, type = "Ljung-Box")
+Box.test(X2, lag = 10, type = "Ljung-Box")
+
+Box.test(X1, lag = 15, type = "Ljung-Box")
+Box.test(X2, lag = 15, type = "Ljung-Box")
+
+```
+
+## =========== QUESTION 2 ===========
+
+#### [Log-Returns and Squared Log-Returns of HP and PDS]
+
+The sample autocorrelation functions (ACFs) for the log returns and
+squared log returns of HP and PDS both exhibit behavior consistent with
+financial theory and empirical observations, and is pretty intuitive.
+For both stocks, the ACFs of the log returns don't show a significant
+autocorrelation beyond lag zero, which aligns with the idea that asset
+returns are mostly uncorrelated and behave like white noise in an
+efficient market (Efficient Market Hypothesis). However, there still is
+a moderate degree of positive autocorrelation with the first 10 or so
+lags for both stocks, which intuitively makes sense. The direction and
+strength of returns would probably tend to correlate with recent
+returns, as stocks tend to have momentum depending on
+market/idiosyncratic conditions.
+
+When we examine the ACFs of both stocks' squared log returns, we can
+observe positive autocorrelation across multiple lags (30\<)
+for both HP and PDS. This reflects the well-understood phenomenon of
+volatility clustering, where periods of high variance in returns tend to
+follow other periods of high variance, and similarly for low variance
+periods. For instance, most of the large fluctuations cluster during
+times of turmoil and market uncertainty (e.g. COVID market crash, 2008
+GFC), and most of the low volatility log returns happen during "boring"
+periods in the market, where prices are steadily increasing or
+decreasing (e.g. 2015-2019).
+
+The squaring of log returns has the interesting effect of acting as a
+proxy for measuring variance at each time point, since variance is
+defined as the expected value of the squared deviation from the mean.
+While the raw log returns fluctuate around zero with no persistent
+pattern, squaring them transforms all deviations into positive values
+and emphasizes the magnitude of changes regardless of direction. This
+transformation reveals autocorrelation in the volatility that is not
+visible in the returns themselves. The positive sample autocorrelations
+in the squared log returns indicates that large/small return magnitudes
+are more likely to be followed by similar large/small return magnitudes,
+even if the direction of the return changes (markets have some of the
+biggest positive returns during crashes). This is an important feature
+of financial time series that ARCH and GARCH models are better able to
+capture.
+
+There is still significant autocorrelation in both stocks' log returns
+and squared log returns according to the Ljung-Box test, however, the
+p-values on the squared log returns are several orders of magnitude less
+than those of the log return series. This indicates that the degree of
+autocorrelation in the absolute magnitude of returns (direction-agnostic
+volatility) is much, much more statistically significant than that of
+simple log returns.
+
+```{r QUESTION_2A, warning=FALSE}
+
+# ==============================================================================
+# SETUP 4 LOG-RETURN & LOG-RETURN-SQUARED SERIES FOR HP AND PDS
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+HP_log_returns <- as.vector(diff(log((HP$HP.Adjusted)))[-1])
+HP_log_returns_2 <- HP_log_returns^2
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+PDS_log_returns <- as.vector(diff(log((PDS$PDS.Adjusted)))[-1])
+PDS_log_returns_2 <- PDS_log_returns^2
+
+# ==============================================================================
+# SAMPLE ACF OF 4 SERIES
+
+acf(HP_log_returns,   main = "ACF of HP_log_returns",   col = "orangered", lwd = 2)
+acf(HP_log_returns_2, main = "ACF of HP_log_returns^2", col = "orangered", lwd = 2)
+
+acf(PDS_log_returns, main = "ACF of PDS_log_returns", col = "mediumturquoise", lwd = 2)
+acf(PDS_log_returns_2, main = "ACF of PDS_log_returns^2", col = "mediumturquoise", lwd = 2)
+```
+
+```{r QUESTION_2B, warning=FALSE}
+
+# ==============================================================================
+# LJUNG-BOX TEST FOR LOG-RETURN AND SQUARED LOG-RETURN OF HP AND PDS
+
+m <- 5
+
+Box.test(HP_log_returns,   lag = m, type = "Ljung-Box")
+Box.test(HP_log_returns_2, lag = m, type = "Ljung-Box")
+
+Box.test(PDS_log_returns,   lag = m, type = "Ljung-Box")
+Box.test(PDS_log_returns_2, lag = m, type = "Ljung-Box")
+
+```
+
+## =========== QUESTION 3 ===========
+
+#### [ARCH(1) Process - **Yt**]
+
+[Question 3(A)]{.underline}
+
+Let $Y_t$ be an ARCH(1) process defined by:
+
+$$Y_t = \epsilon_t \cdot \sigma_t, \quad \text{where } \sigma_t^2 = \alpha_0 + \alpha_1 Y_{t-1}^2$$
+
+Here:
+
+$$\epsilon_t \sim \mathcal{N}(0, 1), i.i.d.$$
+
+$$\alpha_0 > 0$$
+
+$$0 \leq \alpha_1 < 1$$
+
+The process $Y_t$ is weakly stationary, so:
+
+$$\mathbb{E}[Y_t] = 0$$ $$\text{Var}(Y_t) = \mathbb{E}[Y_t^2]$$which is
+constant over time.
+
+**We want to show that:**
+
+$$\text{Var}(Y_t) = \frac{\alpha_0}{1 - \alpha_1}$$
+
+To find $\text{Var}(Y_t)$, we start by squaring both sides of the
+definition of $Y_t$:
+
+$$Y_t^2 = \epsilon_t^2 \cdot \sigma_t^2$$
+
+Next, substitute the expression for $\sigma_t^2$:
+
+$$Y_t^2 = \epsilon_t^2 \cdot (\alpha_0 + \alpha_1 Y_{t-1}^2)$$
+
+Now take the expectation of both sides. Because $\epsilon_t$ is
+independent of $Y_{t-1}$, and $\epsilon_t^2$ has mean 1 (since
+$\epsilon_t \sim \mathcal{N}(0,1)$), we get:
+
+$$\mathbb{E}[Y_t^2] = \mathbb{E}[\epsilon_t^2] \cdot \mathbb{E}[\alpha_0 + \alpha_1 Y_{t-1}^2] = 1 \cdot (\alpha_0 + \alpha_1 \mathbb{E}[Y_{t-1}^2])$$
+
+Since the process is weakly stationary,
+$\mathbb{E}[Y_t^2] = \mathbb{E}[Y_{t-1}^2] = \gamma$ for some constant
+$\gamma$. Therefore:
+
+$$\gamma = \alpha_0 + \alpha_1 \gamma$$
+
+Now plug in and solve for $\gamma$ algebraically:
+
+$$\gamma - \alpha_1 \gamma = \alpha_0 \quad \Rightarrow \quad \gamma (1 - \alpha_1) = \alpha_0 \quad \Rightarrow \quad \gamma = \frac{\alpha_0}{1 - \alpha_1}$$
+
+Thus, we have:
+
+$$\text{Var}(Y_t) = \mathbb{E}[Y_t^2] = \frac{\alpha_0}{1 - \alpha_1}$$
+
+[Question 3(B)]{.underline}
+
+In this simulation, the first realization of Yt\^2 had much lower
+parameter values, and thus we expect it to have much less volatility
+persistence (and therefore less autocorrelation) than the 2nd
+realization. For an AR(1) process we would expect to see strong positive
+values for the first lags, and then an exponential decay in the ACF. The
+sample ACFs do in fact display that, and we can also see that although
+both realizations are autocorrelated with their own previous values, the
+exponential decay on the first realization is much quicker, due to its
+lower parameter values. This intuitively shows that raising the
+parameter values, and by extension the volatility persistence, can
+noticeably change the autocorrelation behavior in the Yt\^2 process.
+Additionally, using the Ljung-Box tests (with lags set to 10), we can
+see that both series have significant autocorrelation, but, the p-value
+for the 2nd realization is several orders of magnitude less, indicating
+a much stronger evidence of autocorrelation.
+
+```{r QUESTION_3B, warning=FALSE}
+
+# ==============================================================================
+# 2 REALIZATIONS OF (Yt)^2 WITH VERY DIFFERENT PARAMETERS AND 1000 TIME STEPS
+
+# seed for reproducibility
+set.seed(416)
+
+# 1000 steps
+n <- 1000
+
+# vectors to store Y^2 for 2 realizations
+Y_sq_1 <- numeric(n)
+Y_sq_2 <- numeric(n)
+
+# sharply different parameter values - different volatility persistence
+alpha0_1 <- 0.1
+alpha1_1 <- 0.2
+
+alpha0_2 <- 0.8
+alpha1_2 <- 0.9
+
+# initial values based on formula for theoretical unconditional variance
+Y_sq_1[1] <- alpha0_1 / (1 - alpha1_1)
+Y_sq_2[1] <- alpha0_2 / (1 - alpha1_2)
+
+# generate standard normal innovations
+epsilon <- rnorm(n)
+
+# simulate both processes
+for (t in 2:n) {
+  sigma_sq_1 <- alpha0_1 + alpha1_1 * Y_sq_1[t - 1]
+  sigma_sq_2 <- alpha0_2 + alpha1_2 * Y_sq_2[t - 1]
+
+  Y_sq_1[t] <- (epsilon[t])^2 * sigma_sq_1
+  Y_sq_2[t] <- (epsilon[t])^2 * sigma_sq_2
+}
+
+# plot the realizations
+plot(Y_sq_1, type = "l", col = "blue", main = "ARCH(1) Realization 1: Low Volatility Persistence", ylab = expression(Y[t]^2), xlab = "Time")
+plot(Y_sq_2, type = "l", col = "red", main = "ARCH(1) Realization 2: High Volatility Persistence", ylab = expression(Y[t]^2), xlab = "Time")
+
+# plot the sample acfs and perform the ljung-box tests
+m <- 10
+
+acf(Y_sq_1, main = "ACF of Y_sq_1", col = "blue", lwd = 2)
+acf(Y_sq_2, main = "ACF of Y_sq_2", col = "red", lwd = 2)
+
+Box.test(Y_sq_1, lag = m, type = "Ljung-Box")
+Box.test(Y_sq_2, lag = m, type = "Ljung-Box")
+
+```

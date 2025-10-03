@@ -1,0 +1,217 @@
+---
+title: "LuthraSauravPS2"
+author: "Saurav Luthra"
+date: "2025-02-07"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 2
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(quantmod)
+```
+
+## Overview.
+
+Placeholder - summary
+
+**HP** Helmerich & Payne, Inc. (NYSE)
+
+**PDS** Precision Drilling Corporation (NYSE)
+
+## QUESTION 1.
+
+#### [**Past 5 Years of Prices and Log Returns**]{.underline}
+
+The plots of the HP and PDS stock price are both very similar since they
+are similar companies operating in the same industry. Although the price
+range over the last 5 years is approximately \$10-\$50 for HP and
+\$10-\$80 for PDS, their trends and moves are very similar. They both
+experienced high volatility at times of oil price shocks and market
+uncertainty. Particularly in 2020 (COVID-19 Pandemic) and 2022/23
+(Ukraine Invasion). Neither of them have a clear mean value through time
+and have long-term changes in value. Their variances (volatility) are
+also not at all constant throughout time. It is difficult to say with
+perfect certainty the degree of stationarity in either of the series,
+but considering the fact that the company and stock evolves
+fundamentally over time, the stock mean price varies greatly depending
+on the time period/window you consider, and the variance/volatility also
+fluctuate greatly, I would not consider any of these series to be
+stationary.
+
+```{r QUESTION_1}
+
+# ==============================================================================
+# SETUP AND GET DATA FOR HP
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+HP_prices <- (HP$HP.Adjusted)
+
+HP_log_returns <- as.vector(diff(log(HP_prices))[-1])
+HP_log_returns_sorted <- sort(HP_log_returns)
+
+HP_n <- length(HP_log_returns_sorted)
+
+# ==============================================================================
+# SETUP AND GET DATA FOR PDS
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+PDS_prices <- (PDS$PDS.Adjusted)
+
+PDS_log_returns <- as.vector(diff(log(PDS_prices))[-1])
+PDS_log_returns_sorted <- sort(PDS_log_returns)
+
+PDS_n <- length(PDS_log_returns_sorted)
+
+# ==============================================================================
+# PLOT PRICES FOR HP AND PDS
+
+# plot HP price series
+plot(index(HP_prices), HP_prices, type = "l", col = "orangered", lwd = 1, main = "Closing-Price of HP", xlab = "Date", ylab = "Price ($)")
+
+# plot PDS price series
+plot(index(PDS_prices), PDS_prices, type = "l", col = "mediumturquoise", lwd = 1, main = "Closing-Price of PDS", xlab = "Date", ylab = "Price ($)")
+
+```
+
+## QUESTION 2.
+
+#### [**Plots of Log-Returns**]{.underline}
+
+The plots of the HP and PDS log returns are both very similar since they
+are similar companies operating in the same industry. Over the last 5
+years, HP and PDS both have log returns that are tightly banded slightly
+around 0. They both experienced high volatility at times of oil price
+shocks and market uncertainty. Particularly in 2020 (COVID-19 Pandemic)
+and 2022/23 (Ukraine Invasion). Although most log return values are
+close to the mean of \~0 (above or below), there are several outliers in
+both. It does seem that HP's log returns are slightly more widely
+disbursed than PDS. The series both seem to be stationary, since their
+mean, variance and other characteristics remain the same throughout the
+entire 5 years.
+
+```{r QUESTION_2}
+
+# plot HP log returns
+plot(index(HP_prices)[-1], HP_log_returns, type = "p", col = "orangered", pch = 16, main = "Log Returns of HP vs. Time", xlab = "Date", ylab = "Log Return")
+
+# plot PDS log returns
+plot(index(PDS_prices)[-1], PDS_log_returns, type = "p", col = "mediumturquoise", pch = 16, main = "Log Returns of PDS vs. Time", xlab = "Date", ylab = "Log Return")
+
+```
+
+## QUESTION 3.
+
+#### [**Quantile-Quantile Plots of Log-Returns vs. Normal Distribution**]{.underline}
+
+Both of these normal Q-Q plots do a somewhat decent job at showing that
+the normal distribution could potentially be used to model the
+underlying log returns of the stock prices. I don't believe it's a very
+good fit, however, since both of the plots have significant outliers in
+both the right hand and left hand side tails. Clearly, there is a lot of
+behaviour in the data pertaining to log returns of the stocks that is
+not captured or explained by a normal distribution. Although both plots
+show that most data points' quantiles match up with those of the normal
+distribution, the outliers on both sides likely need a different
+underlying distribution to accurately model them. It is clear from the
+plots that HP has a greater number of particularly strong outliers in
+its log returns than PDS does.
+
+```{r QUESTION_3}
+
+# Q-Q Plot for HP_log_returns
+qqnorm(HP_log_returns, xlab = "Normal Quantiles", ylab = "Log Return Quantiles", main = "HP | Normal Q-Q Plot for Log Returns", col = "orangered")
+qqline(HP_log_returns, col = "black")
+
+# Q-Q Plot for PDS_log_returns
+qqnorm(PDS_log_returns, xlab = "Normal Quantiles", ylab = "Log Return Quantiles", main = "PDS | Normal Q-Q Plot for Log Returns", col = "mediumturquoise")
+qqline(PDS_log_returns, col = "black")
+
+```
+
+## QUESTION 4.
+
+#### [**Quantile-Quantile Plots of Log-Returns vs Student T-Distribution**]{.underline}
+
+The Q-Q plot with the best fit for the data seems to be the following:
+
+HP - 4 DoF PDS - 6 DoF
+
+In both these plots, the apparent 'slope' of the majority of the
+observations matched the reference line most closely. Additionally, many
+of the outliers on the upper and lower tails of the
+distribution/quantiles were closest to the reference line at these
+particular values for k (Degrees of Freedom).
+
+```{r QUESTION_4}
+
+# values to try for DoF of the T-distribution
+k_vals <- c(2,3,4,5,6,7,8,9,10,20)
+
+# try all different DoF for the HP q-q plots
+for (k in k_vals){
+  
+  # HP theoretical t-distribution quantiles, with DoF = k
+  t_quantiles <- qt(ppoints(HP_n), df = k)  
+  qqplot(t_quantiles, HP_log_returns_sorted, col = "orangered", xlab = "T-Distribution Quantiles", ylab = "Log Returns", main = paste("HP | Q-Q Plot vs T-Distribution | DoF =", k))
+  qqline(HP_log_returns_sorted, col = "black")
+  
+}
+
+# try all different DoF for the PDS q-q plots
+for (k in k_vals){
+  
+  # PDS theoretical t-distribution quantiles, with DoF = k
+  t_quantiles <- qt(ppoints(PDS_n), df = k)  
+  qqplot(t_quantiles, PDS_log_returns_sorted, col = "mediumturquoise", xlab = "T-Distribution Quantiles", ylab = "Log Returns", main = paste("PDS | Q-Q Plot vs T-Distribution | DoF =", k))
+  qqline(PDS_log_returns_sorted, col = "black")
+  
+}
+
+```
+
+## QUESTION 5.
+
+#### [**Log-Return Contrasts and Similarities**]{.underline}
+
+From the plots displayed above, the sorted log returns of PDS as
+compared to HP are comparatively much more 'predictable' in that they
+seem to adhere much more to the underlying T-distribution. The outliers
+in the PDS series are far fewer and smaller in magnitude, with the
+exception of 1 observation on the very far left of the plot. The HP log
+return series has distinctively more outliers on the left hand tail,
+representing a lot of unexpectedly large down moves in the stock price.
+To the same effect, there are far more strong up moves in the HP stock
+price as well, represented by the numerous outliers in the right hand
+portion of the log return Q-Q plot. Overall, the log returns of HP seem
+more widely dispersed and more prone to large outliers than PDS. This
+could potentially be due to fundamental company factors that make
+investors more sensitive to changes in the company's outlook for better
+or for worse (e.g. riskier revenue sources, weaker balance sheet, more
+susceptible to macro factors, etc.)
+
+```{r QUESTION_5}
+
+# best fit q-q plots for the log returns vs t-distribution
+
+# HP theoretical t-distribution quantiles, with DoF = 4
+t_quantiles <- qt(ppoints(HP_n), df = 4)  
+qqplot(t_quantiles, HP_log_returns_sorted, col = "orangered", xlab = "T-Distribution Quantiles", ylab = "Log Returns", main = "HP | Q-Q Plot vs T-Distribution | DoF = 4")
+qqline(HP_log_returns_sorted, col = "black")
+
+
+# PDS theoretical t-distribution quantiles, with DoF = 6
+t_quantiles <- qt(ppoints(PDS_n), df = 6)  
+qqplot(t_quantiles, PDS_log_returns_sorted, col = "mediumturquoise", xlab = "T-Distribution Quantiles", ylab = "Log Returns", main = "PDS | Q-Q Plot vs T-Distribution | DoF = 6")
+qqline(PDS_log_returns_sorted, col = "black")
+  
+```

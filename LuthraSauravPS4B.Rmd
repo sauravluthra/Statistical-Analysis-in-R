@@ -1,0 +1,323 @@
+---
+title: "LuthraSauravPS4B"
+author: "Saurav Luthra"
+date: "2025-03-30"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 4B
+
+## =========== OVERVIEW ===========
+
+**HP :** Helmerich & Payne, Inc. (NYSE)
+
+**PDS :** Precision Drilling Corporation (NYSE)
+
+## =========== SETUP ===========
+
+```{r IMPORTS, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(copula)
+library(data.table)
+library(fGarch) 
+library(ggplot2)
+library(MASS)
+library(mnormt)
+library(quantmod)
+
+```
+
+```{r SETUP}
+
+# ==============================================================================
+# GET DATA AND SETUP FOR HP
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+HP_prices <- (HP$HP.Adjusted)
+
+HP_log_returns <- as.vector(diff(log(HP_prices))[-1])
+
+# ==============================================================================
+# GET DATA AND SETUP FOR PDS
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+PDS_prices <- (PDS$PDS.Adjusted)
+
+PDS_log_returns <- as.vector(diff(log(PDS_prices))[-1])
+
+```
+
+## =========== QUESTION 4 ===========
+
+#### [**T-Copula of HP Log Returns and PDS Log Returns**]
+
+Using both methods of making the data uniform-transformed, we fit 2
+T-copulas to the bivariate data, using maximum likelihood estimation
+(MLE). The results of both fitted copulas are relatively similar and
+have very close degrees of freedom and correlation estimates. The
+results are the following:
+
+**FT1:**
+
+**Estimated Correlation:** 0.6762, **SE:** 0.0162
+
+**Estimated Tail Parameter Index (DoF):** 3.9374, **SE:** 0.5333
+
+**FT2:**
+
+**Estimated Correlation:** 0.6769, **SE:** 0.0163
+
+**Estimated Tail Parameter Index (DoF):** 3.7966, **SE:** 0.5128
+
+Uniform transformation **(data1)** (using methods like pstd) assumes a
+specific distribution for the data (e.g., student T-distribution) and
+transforms it into uniform marginals while preserving distributional
+characteristics like heavy tails. This is useful for modeling extreme
+events but requires correct specification of the marginal distribution.
+Rank-based transformation **(data2)**, on the other hand, ranks the data
+and scales it to uniform values without assuming any distribution,
+making it more flexible but potentially less accurate for data with
+specific tail behaviors. While rank-based methods are robust and
+non-parametric, uniform transformation can provide better modeling for
+data with known distributional characteristics. Applying pstd to
+**HP_log_returns** and **PDS_log_returns** would transform these
+datasets into uniform marginals by assuming that the log returns follow
+a student T-distribution. This transformation would preserve the
+heavy-tail characteristics typically found in stock log-return data,
+which is particularly useful when modeling extreme events or volatility
+clustering. After applying pstd, both **HP_log_returns** and
+**PDS_log_returns** would be mapped to the interval [0, 1], allowing for
+copula modeling to focus on their dependence structure while accounting
+for the distributional characteristics of the returns.
+
+```{r QUESTION_4, warning = FALSE}
+
+# ==============================================================================
+# SETUP
+
+n <- length(HP_log_returns)
+
+cor_tau = cor(HP_log_returns, PDS_log_returns, method="kendall")
+omega = sin(pi * cor_tau / 2)
+cop_t_dim2 = tCopula(omega, dim=2, dispstr="un", df=4)
+
+# ==============================================================================
+# UNIVARIATE T-DISTRIBUTIONS FROM QUESTION 2
+
+est_HP = as.numeric(fitdistr(HP_log_returns, "t")$estimate)
+std_HP <- est_HP[2] * sqrt(est_HP[3] / (est_HP[3] - 2))
+
+est_PDS = as.numeric(fitdistr(PDS_log_returns, "t")$estimate)
+std_PDS <- est_PDS[2] * sqrt(est_PDS[3] / (est_PDS[3] - 2))
+
+# ==============================================================================
+# UNIFORM-TRANSFORMED DATA
+
+data1 = cbind(pstd(HP_log_returns, est_HP[1], std_HP, est_HP[3]), pstd(PDS_log_returns, est_PDS[1], std_PDS, est_PDS[3]))
+data2 = cbind(rank(HP_log_returns)/(n+1), rank(PDS_log_returns)/(n+1))
+
+# ==============================================================================
+# FIT T-COPULAS
+
+ft1 = fitCopula(cop_t_dim2, data1, method="ml", start=c(omega,4))
+ft2 = fitCopula(cop_t_dim2, data2, method="ml", start=c(omega,4))
+
+# ==============================================================================
+# OUTPUT ESTIMATES FT1
+
+# parameter estimates
+estimates_ft1 <- coef(ft1)  
+# standard errors
+std_errors_ft1 <- sqrt(diag(vcov(ft1)))  
+
+cat("FT1: \n\n")
+cat("Estimated Correlation:", estimates_ft1[1], "\n")
+cat("Standard Error (Correlation):", std_errors_ft1[1], "\n")
+cat("Estimated Tail Parameter Index (DoF):", estimates_ft1[2], "\n")
+cat("Standard Error (Degrees of Freedom):", std_errors_ft1[2], "\n")
+
+# ==============================================================================
+# OUTPUT ESTIMATES FT2
+
+# parameter estimates
+estimates_ft2 <- coef(ft2)  
+# standard errors
+std_errors_ft2 <- sqrt(diag(vcov(ft2)))  
+
+cat("\n\nFT2: \n\n")
+cat("Estimated Correlation:", estimates_ft2[1], "\n")
+cat("Standard Error (Correlation):", std_errors_ft2[1], "\n")
+cat("Estimated Tail Parameter Index (DoF):", estimates_ft2[2], "\n")
+cat("Standard Error (Degrees of Freedom):", std_errors_ft2[2], "\n")
+
+```
+
+## =========== QUESTION 5 ===========
+
+#### [**Maximum Likelihood Estimates of Gaussian, Clayton, and Joe Copulas of HP and PDS Log-Returns**]
+
+For the pair (HP_log_returns, PDS_log_returns) we use the maximum
+likelihood method to fit a Gaussian, Clayton, and Joe copula to model
+the underlying pairs of log returns.
+
+**Normal Copula**
+
+Correlation (ρ): Estimate = 0.6559, SE = 0.0132
+
+**Clayton Copula**
+
+Dependence parameter (θ): Estimate = 1.8243, SE = 0.0731
+
+**Joe Copula**
+
+Dependence parameter (θ): Estimate = 1.9975, SE = 0.0567
+
+The copula-fitting results for the pair of log returns,
+**HP_log_returns** and **PDS_log_returns**, reveal distinct dependence
+structures modeled by the Gaussian, Clayton, and Joe copulas. The
+**Gaussian copula** suggests a moderate positive correlation (ρ =
+0.6559) between the two return series, indicating a relatively strong
+linear relationship. In contrast, the **Clayton copula**, with a
+dependence parameter estimate of 1.8243, reflects a positive but
+asymmetric dependence structure, typically capturing tail dependence
+where large negative returns in one series are associated with large
+negative returns in the other. Similarly, the **Joe copula**, with a
+dependence parameter of 1.9975, suggests an even stronger tail
+dependence than the Clayton copula, especially in the upper tail,
+implying that large positive returns in one series are likely to be
+associated with large positive returns in the other. The results
+highlight how different copulas capture varying aspects of dependence,
+with the Gaussian copula modeling linear relationships and the Clayton
+and Joe copulas emphasizing asymmetric and tail dependencies.
+
+The **Gaussian copula’s** moderate correlation of 0.6559 suggests a
+significant but not extreme linear relationship between the two stocks,
+reflecting a typical market behavior where they are somewhat correlated
+but not perfectly synchronized. This might indicate that while both
+stocks share common industry risks, their returns are influenced by
+company-specific factors, and extreme co-movements are better captured
+by copulas like Clayton or Joe. The strong tail dependence observed in
+both the **Clayton and Joe copulas** suggests that extreme movements in
+one stock are likely to be associated with extreme movements in the
+other, particularly in the upper and lower tails. Given that both stocks
+belong to the same country (USA) and industry (oil production), this is
+not surprising. The oil sector is highly sensitive to macroeconomic
+factors and oil prices, which often drive sharp, correlated movements in
+the stock prices of companies within the industry. For example, a
+significant drop in oil prices or a major economic event could
+simultaneously impact both stocks, leading to joint extreme negative
+returns, while positive economic shifts or surges in oil prices might
+drive strong positive returns in both. This tight linkage between the
+stocks' returns is indicative of the broader systemic and macroeconomic
+factors influencing their performance, and has been highlighted in the
+past few problem sets also.
+
+The **standard errors (SE)** of the estimated parameters for each copula
+model are relatively small, indicating that the parameter estimates for
+the correlation (Gaussian copula) and dependence parameters (Clayton and
+Joe copulas) are statistically significant and have been estimated with
+a good degree of precision.
+
+```{r QUESTION_5}
+
+# ==============================================================================
+# FIT THE GAUSSIAN, CLAYTON, AND JOE COPULAS
+
+fnorm = fitCopula(copula=normalCopula(dim=2), data=data1, method="ml")
+
+fclayton = fitCopula(copula=claytonCopula(1,dim=2),data=data1, method="ml")
+
+fjoe = fitCopula(copula=joeCopula(2,dim=2),data=data1,method="ml")
+
+# ==============================================================================
+# OUTPUT ALL ESTIMATED PARAMETERS AND STANDARD ERRORS
+
+# print results for Normal Copula
+cat("\n------------------------------\n")
+cat("Normal Copula\n")
+cat("------------------------------\n")
+cat(sprintf("Parameter: Estimate = %.4f, SE = %.4f\n", coef(fnorm), sqrt(diag(vcov(fnorm)))))
+
+# print results for Clayton Copula
+cat("\n------------------------------\n")
+cat("Clayton Copula\n")
+cat("------------------------------\n")
+cat(sprintf("Parameter: Estimate = %.4f, SE = %.4f\n", coef(fclayton), sqrt(diag(vcov(fclayton)))))
+
+# print results for Joe Copula
+cat("\n------------------------------\n")
+cat("Joe Copula\n")
+cat("------------------------------\n")
+cat(sprintf("Parameter: Estimate = %.4f, SE = %.4f\n", coef(fjoe), sqrt(diag(vcov(fjoe)))))
+```
+
+## =========== QUESTION 6 ===========
+
+#### [**Copula Diagrams - T, Gaussian, Clayton, Joe**]
+
+Using the 'contour' command we create a diagram of all the copulas (T,
+Gaussian, Clayton, Joe).
+
+Each diagram is a cumulative distribution function (CDF) for the
+particular bivariate uniform distribution.
+
+```{r QUESTION_6}
+
+# ==============================================================================
+# SETUP
+
+# define a grid of (u,v) values
+u_vals = seq(0, 1, length.out = 50)  # 50 points from 0 to 1
+v_vals = seq(0, 1, length.out = 50)  
+
+# create a meshgrid of all (u,v) pairs
+grid = expand.grid(u_vals, v_vals)
+colnames(grid) = c("u", "v")
+
+nr = length(u_vals) 
+nc = length(v_vals)
+# ==============================================================================
+# T COPULA DIAGRAM
+
+# round the degree of freedom to the nearest integer
+ft2@copula@parameters[2] <- round(ft2@copula@parameters[2])
+
+cdf_vals_t = pCopula(as.matrix(grid), copula = ft2@copula)
+cdf_matrix_t = matrix(cdf_vals_t, nrow = nr, ncol = nc)
+par(pty = "s")
+contour(u_vals, v_vals, cdf_matrix_t, xlab="HP Log-Returns", ylab="PDS Log-Returns", main="Contour of t-Copula CDF")
+
+# ==============================================================================
+# GAUSSIAN (NORMAL) COPULA DIAGRAM
+
+cdf_vals_norm = pCopula(as.matrix(grid), copula = fnorm@copula)
+cdf_matrix_norm = matrix(cdf_vals_norm, nrow = nr, ncol = nc)
+par(pty = "s")
+contour(u_vals, v_vals, cdf_matrix_norm, xlab="HP Log-Returns", ylab="PDS Log-Returns", main="Contour of Normal Copula CDF")
+
+# ==============================================================================
+# CLAYTON COPULA DIAGRAM
+
+cdf_vals_clayton = pCopula(as.matrix(grid), copula = fclayton@copula)
+cdf_matrix_clayton = matrix(cdf_vals_clayton, nrow = nr, ncol = nc)
+par(pty = "s")
+contour(u_vals, v_vals, cdf_matrix_clayton, xlab="HP Log-Returns", ylab="PDS Log-Returns", main="Contour of Clayton Copula CDF")
+
+# ==============================================================================
+# JOE COPULA DIAGRAM
+
+cdf_vals_joe = pCopula(as.matrix(grid), copula = fjoe@copula)
+cdf_matrix_joe = matrix(cdf_vals_joe, nrow = nr, ncol = nc)
+par(pty = "s")
+contour(u_vals, v_vals, cdf_matrix_joe, xlab="HP Log Returns", ylab="PDS Log Returns", main="Contour of Joe Copula CDF")
+
+```

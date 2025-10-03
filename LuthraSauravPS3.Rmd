@@ -1,0 +1,440 @@
+---
+title: "LuthraSauravPS3"
+author: "Saurav Luthra"
+date: "2025-02-28"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 3
+
+## =========== OVERVIEW ===========
+
+**HP :** Helmerich & Payne, Inc. (NYSE)
+
+**PDS :** Precision Drilling Corporation (NYSE)
+
+## =========== SETUP ===========
+
+Getting the following for HP and PDS:
+
+-   prices
+-   returns
+-   log-returns
+-   sorted log-returns
+
+```{r IMPORTS, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(quantmod)
+library(fGarch)  # For fitting T-distribution
+library(MASS)
+library(ggplot2)
+library(data.table)
+
+```
+
+```{r SETUP}
+
+# ==============================================================================
+# SETUP AND GET DATA FOR HP
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+HP_prices <- (HP$HP.Adjusted)
+
+HP_log_returns <- as.vector(diff(log(HP_prices))[-1])
+HP_log_returns2 <- copy(HP_log_returns)
+HP_log_returns_sorted <- sort(HP_log_returns)
+
+HP_n <- length(HP_log_returns_sorted)
+
+# ==============================================================================
+# SETUP AND GET DATA FOR PDS
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+PDS_prices <- (PDS$PDS.Adjusted)
+
+PDS_log_returns <- as.vector(diff(log(PDS_prices))[-1])
+PDS_log_returns2 <- copy(PDS_log_returns)
+PDS_log_returns_sorted <- sort(PDS_log_returns)
+
+PDS_n <- length(PDS_log_returns_sorted)
+
+# ==============================================================================
+# PLOT PRICES, LOG-RETURNS, AND SORTED LOG-RETURNS FOR HP
+
+# plot HP price series
+plot(index(HP_prices), HP_prices, type = "l", col = "orangered", lwd = 1, main = "Closing-Price of HP", xlab = "Date", ylab = "Price ($)")
+
+# plot HP log returns
+plot(index(HP_prices)[-1], HP_log_returns, type = "p", col = "orangered", pch = 16, main = "Log Returns of HP vs. Time", xlab = "Date", ylab = "Log Return")
+
+# plot HP sorted log returns
+plot(1:length(HP_log_returns_sorted), HP_log_returns_sorted, type="p", col="orangered", pch=16, main="Sorted Log Returns of HP", xlab="Index", ylab="Log Return")
+
+# ==============================================================================
+# PLOT PRICES, LOG-RETURNS, AND SORTED LOG-RETURNS FOR PDS
+
+# plot PDS price series
+plot(index(PDS_prices), PDS_prices, type = "l", col = "mediumturquoise", lwd = 1, main = "Closing-Price of PDS", xlab = "Date", ylab = "Price ($)")
+
+# plot PDS log returns
+plot(index(PDS_prices)[-1], PDS_log_returns, type = "p", col = "mediumturquoise", pch = 16, main = "Log Returns of PDS vs. Time", xlab = "Date", ylab = "Log Return")
+
+# plot PDS sorted log returns
+plot(1:length(PDS_log_returns_sorted), PDS_log_returns_sorted, type="p", col = "mediumturquoise", pch = 16, main = "Sorted Log Returns of PDS", xlab="Index", ylab="Log Return")
+
+```
+
+## =========== QUESTION 1 ===========
+
+#### [**Kernel Density Estimate and Parametric (Normal, Student-T) Estimate of Log-Return Density**]
+
+```{r QUESTION_1_HP}
+
+# ==============================================================================
+# SETUP FOR ANALYZING HP LOG-RETURNS
+
+HP_max   <- max(HP_log_returns)
+HP_min   <- min(HP_log_returns)
+HP_n     <- length(HP_log_returns)
+
+HP_mu    <- mean(HP_log_returns)
+HP_sigma <- sd(HP_log_returns)
+HP_iqr   <- IQR(HP_log_returns)
+HP_bw    <- 0.9 * min(HP_sigma, HP_iqr / 1.34) * HP_n^(-1/5)
+
+# ==============================================================================
+# HISTOGRAM OF HP LOG-RETURNS
+
+hist(HP_log_returns, breaks=50,  freq=FALSE,col='orangered')
+hist(HP_log_returns, breaks=100, freq=FALSE,col='orangered')
+
+# ==============================================================================
+# KERNEL DENSITY ESTIMATE (KDE) OF HP LOG-RETURNS
+
+plot(density(HP_log_returns, bw = HP_bw + 0.002), col='coral4', main="KDE 1", lwd=1)
+plot(density(HP_log_returns, bw = HP_bw        ), col='coral4', main="KDE 2", lwd=1)
+plot(density(HP_log_returns, bw = HP_bw - 0.002), col='coral4', main="KDE 3", lwd=1)
+
+HP_kde <- density(HP_log_returns, bw = HP_bw)
+
+# ==============================================================================
+# NORMAL DENSITY ESTIMATE OF HP LOG-RETURNS
+
+HP_norm <- function(x) dnorm(x, mean=HP_mu, sd=HP_sigma)
+
+curve(HP_norm, from=HP_min, to=HP_max, col="hotpink2", lwd=1, main="Normal Density Estimate of HP Log Returns", xlab='HP Log Return', ylab='Density')
+
+# ==============================================================================
+# STUDENT-T DENSITY ESTIMATE OF HP LOG-RETURNS
+
+# median absolute deviation (MAD) of HP log returns
+HP_mad <- mad(HP_log_returns)
+
+HP_dof = 4
+
+# define the T-distribution density function
+HP_t <- function(x) dt((x - HP_mu) / HP_mad, df=HP_dof) / HP_mad
+
+curve(HP_t, col='palegreen4', from=HP_min, to=HP_max, main="Student-T (4 DoF) Desnity Estimate of HP Log Returns", xlab='Log Returns', ylab='Density')
+
+# ==============================================================================
+# FINAL PLOT: OVERLAY HISTOGRAM, KDE, NORMAL, AND STUDENT-T DENSITY ESTIMATES
+
+# Create histogram and set freq=FALSE for density scale
+hist(HP_log_returns, breaks=100, freq=FALSE, col=rgb(1, 0.27, 0, 0.5), border="white",
+     main="Density Estimates of HP Log Returns", xlab="HP Log Return", ylab="Density")
+
+# Overlay KDE density estimate
+lines(HP_kde, col="coral4", lwd=2)
+
+# Overlay Normal density estimate
+curve(HP_norm, from=HP_min, to=HP_max, col="hotpink2", lwd=2, add=TRUE)
+
+# Overlay Student-t density estimate
+curve(HP_t, from=HP_min, to=HP_max, col="palegreen4", lwd=2, add=TRUE)
+
+# Add a legend
+legend("topright", legend=c("KDE", "Normal", "Student-t"),
+       col=c("coral4", "hotpink2", "palegreen4"), lwd=2, cex=0.8)
+
+```
+
+```{r QUESTION_1_PDS}
+
+
+# ==============================================================================
+# SETUP FOR ANALYZING PDS LOG-RETURNS
+
+PDS_max   <- max(PDS_log_returns)
+PDS_min   <- min(PDS_log_returns)
+PDS_n     <- length(PDS_log_returns)
+
+PDS_mu    <- mean(PDS_log_returns)
+PDS_sigma <- sd(PDS_log_returns)
+PDS_iqr   <- IQR(PDS_log_returns)
+PDS_bw    <- 0.9 * min(PDS_sigma, PDS_iqr / 1.34) * PDS_n^(-1/5)
+
+# ==============================================================================
+# HISTOGRAM OF PDS LOG-RETURNS
+
+hist(PDS_log_returns, breaks=50,  freq=FALSE,col='mediumturquoise')
+hist(PDS_log_returns, breaks=100, freq=FALSE,col='mediumturquoise')
+
+# ==============================================================================
+# KERNEL DENSITY ESTIMATE (KDE) OF PDS LOG-RETURNS
+
+plot(density(PDS_log_returns, bw = PDS_bw + 0.002), col='coral4', main="KDE 1", lwd=1)
+plot(density(PDS_log_returns, bw = PDS_bw        ), col='coral4', main="KDE 2", lwd=1)
+plot(density(PDS_log_returns, bw = PDS_bw - 0.002), col='coral4', main="KDE 3", lwd=1)
+
+PDS_kde <- density(PDS_log_returns, bw = PDS_bw)
+
+# ==============================================================================
+# NORMAL DENSITY ESTIMATE OF PDS LOG-RETURNS
+
+PDS_norm <- function(x) dnorm(x, mean=PDS_mu, sd=PDS_sigma)
+
+curve(PDS_norm, from=PDS_min, to=PDS_max, col="hotpink2", lwd=1, main="Normal Density Estimate of HP Log Returns", xlab='PDS Log Return', ylab='Density')
+
+# ==============================================================================
+# STUDENT-T DENSITY ESTIMATE OF PDS LOG-RETURNS
+
+# median absolute deviation (MAD) of HP log returns
+PDS_mad <- mad(PDS_log_returns)
+
+PDS_dof = 6
+
+# define the T-distribution density function
+PDS_t <- function(x) dt((x - PDS_mu) / PDS_mad, df=PDS_dof) / PDS_mad
+
+curve(PDS_t, col='palegreen4', from=PDS_min, to=PDS_max, main="Student-T (6 DoF) Desnity Estimate of PDS Log Returns", xlab='Log Returns', ylab='Density')
+
+# ==============================================================================
+# FINAL PLOT: OVERLAY HISTOGRAM, KDE, NORMAL, AND STUDENT-T DENSITY ESTIMATES
+
+# Create histogram and set freq=FALSE for density scale
+hist(PDS_log_returns, breaks=100, freq=FALSE, col=rgb(0.28, 0.82, 0.8, 0.5), border="white",
+     main="Density Estimates of PDS Log Returns", xlab="PDS Log Return", ylab="Density")
+
+# Overlay KDE density estimate
+lines(PDS_kde, col="coral4", lwd=2)
+
+# Overlay Normal density estimate
+curve(PDS_norm, from=PDS_min, to=PDS_max, col="hotpink2", lwd=2, add=TRUE)
+
+# Overlay Student-t density estimate
+curve(PDS_t, from=PDS_min, to=PDS_max, col="palegreen4", lwd=2, add=TRUE)
+
+# Add a legend
+legend("topright", legend=c("KDE", "Normal", "Student-t"),
+       col=c("coral4", "hotpink2", "palegreen4"), lwd=2, cex=0.8)
+
+
+```
+
+## =========== QUESTION 2 ===========
+
+#### [**Logistic Regression to Predict Up/Down Moves in Log Returns**]
+
+The first logistic regression model, based on the PDS log returns,
+demonstrates a predictive accuracy of 52%, which indicates only a
+marginal ability to correctly predict the direction of the next log
+return. However, none of the predictor variables—lag1, lag2, and
+volume—are statistically significant, as evidenced by their p-values
+being greater than the conventional significance threshold of 0.05. This
+suggests that these variables do not exhibit a strong relationship with
+the target variable, direction, in the context of this model.
+
+Similarly, the second logistic regression model, which utilizes the HP
+log returns, yields an accuracy of 48.8%, further highlighting the
+modest predictive capability of the model. Again, none of the predictor
+variables—lag1, lag2, and volume—are found to be statistically
+significant, as their p-values exceed the threshold for significance.
+This further reinforces the observation that the selected predictors do
+not appear to have a meaningful influence on the direction of the log
+returns.
+
+Both models exhibit similar residual deviance and AIC values, suggesting
+comparable goodness-of-fit between the two models. Despite this, the low
+accuracy and the absence of statistically significant relationships
+indicate that the chosen lagged log returns and volume may not be the
+most effective predictors for forecasting the direction of log returns
+in these particular cases. Further refinement of the model, potentially
+incorporating additional predictors or alternative methodologies, may be
+necessary to improve predictive performance.
+
+```{r QUESTION_2_HP}
+
+# define direction: 1 if log return > 0, otherwise 0
+HP_direction <- ifelse(HP_log_returns > 0, 1, 0)
+
+# create volume predictor
+HP_volume <- as.vector(HP$HP.Volume)[-1]
+HP_volume <- c(NA, HP_volume[-length(HP_volume)])
+
+# create lagged log-return predictors
+HP_lag1 <- c(NA, HP_log_returns[-length(HP_log_returns)])  
+HP_lag2 <- c(NA, NA, HP_log_returns <- HP_log_returns[-c((length(HP_log_returns)-1), length(HP_log_returns))])
+
+cat("Length of direction: ", length(HP_direction), "\n")
+cat("Length of vol.     : ", length(HP_volume), "\n")
+cat("Length of lag1     : ", length(HP_lag1), "\n")
+cat("Length of lag2     : ", length(HP_lag2), "\n")
+
+# create data frame and remove first two rows (NA values from lagged variables)
+HP_data <- data.frame(HP_direction, HP_lag1, HP_lag2, HP_volume)
+
+# remove rows with NA values
+HP_data <- na.omit(HP_data)  
+
+HP_data
+
+#create logisitic regression model
+HP_lr <- glm(HP_direction ~ HP_lag1 + HP_lag2 + HP_volume, data = HP_data, family = binomial)
+summary(HP_lr)
+
+# get predicted probabilities
+HP_lr_pred_prob <- predict(HP_lr, type = "response")
+
+# convert probabilities to binary predictions
+HP_lr_pred_dir <- ifelse(HP_lr_pred_prob > 0.5, 1, 0)
+
+# compute and display confusion matrix
+HP_lr_conf_matrix <- table(Predicted = HP_lr_pred_dir, Actual = HP_data$HP_direction)
+HP_lr_conf_matrix
+
+# calculate accuracy
+HP_lr_accuracy <- mean(HP_lr_pred_dir == HP_data$HP_direction)
+print(paste("HP LR Model Accuracy:", round(HP_lr_accuracy, 3)))
+
+```
+
+```{r QUESTION_2_PDS}
+
+# define direction: 1 if log return > 0, otherwise 0
+PDS_direction <- ifelse(PDS_log_returns > 0, 1, 0)
+
+# create volume predictor
+PDS_volume <- as.vector(PDS$PDS.Volume)[-1]
+PDS_volume <- c(NA, PDS_volume[-length(PDS_volume)])
+
+# create lagged log-return predictors
+PDS_lag1 <- c(NA, PDS_log_returns[-length(PDS_log_returns)])  
+PDS_lag2 <- c(NA, NA, HP_log_returns <- PDS_log_returns[-c((length(PDS_log_returns)-1), length(PDS_log_returns))])
+
+cat("Length of direction: ", length(PDS_direction), "\n")
+cat("Length of vol.     : ", length(PDS_volume), "\n")
+cat("Length of lag1     : ", length(PDS_lag1), "\n")
+cat("Length of lag2     : ", length(PDS_lag2), "\n")
+
+# create data frame and remove first two rows (NA values from lagged variables)
+PDS_data <- data.frame(PDS_direction, PDS_lag1, PDS_lag2, PDS_volume)
+
+# remove rows with NA values
+PDS_data <- na.omit(PDS_data)  
+
+PDS_data
+
+#create logisitic regression model
+PDS_lr <- glm(PDS_direction ~ PDS_lag1 + PDS_lag2 + PDS_volume, data = PDS_data, family = binomial)
+summary(PDS_lr)
+
+# get predicted probabilities
+PDS_lr_pred_prob <- predict(PDS_lr, type = "response")
+
+# convert probabilities to binary predictions
+PDS_lr_pred_dir <- ifelse(PDS_lr_pred_prob > 0.5, 1, 0)
+
+# compute and display confusion matrix
+PDS_lr_conf_matrix <- table(Predicted = PDS_lr_pred_dir, Actual = PDS_data$PDS_direction)
+PDS_lr_conf_matrix
+
+# calculate accuracy
+PDS_lr_accuracy <- mean(PDS_lr_pred_dir == PDS_data$PDS_direction)
+print(paste("PDS LR Model Accuracy:", round(PDS_lr_accuracy, 3)))
+
+```
+
+## =========== QUESTION 3 ===========
+
+#### [**Linear Discriminant Analysis (LDA) Model of Direction of Log-Returns**]
+
+The LDA models of HP and PDS both perform quite poorly. "HP LDA Model
+Accuracy: 0.488". "PDS LDA Model Accuracy: 0.502". According to the
+confusion matrix, the number of correct and incorrect labels is in the
+same ballpark for both models, implying that the models perform about
+roughly the same as a coin flip. There does not seem to be any useful
+information to gain from the 2 lags or volume predictors, that could
+help predict the direction of the next log return. One important
+consideration is that LDA assumes that the data for each predictor
+follows a normal distribution, so we cannot say with any level of
+confidence that its the case for the lags or volume. Another
+consideration, is that in LDA the assumption is that the covariance
+matrix is the same for both classes (binary outcomes). This means that
+the spread or variability of the predictors is assumed to be the same
+across both classes, which may not be the case.
+
+```{r QUESTION_3_HP}
+
+HP_lda <- lda(HP_direction ~ HP_lag1 + HP_lag2 + HP_volume, data = HP_data)
+print(HP_lda)
+
+HP_lda_pred_dir <- predict(HP_lda)
+
+HP_lda_accuracy <- mean(HP_lda_pred_dir$class == HP_data$HP_direction)
+print(paste("HP LDA Model Accuracy:", round(HP_lda_accuracy, 3)))
+
+```
+
+```{r QUESTION_3_PDS}
+
+PDS_lda <- lda(PDS_direction ~ PDS_lag1 + PDS_lag2 + PDS_volume, data = PDS_data)
+print(PDS_lda)
+
+PDS_lda_pred_dir <- predict(PDS_lda)
+
+PDS_lda_accuracy <- mean(HP_lda_pred_dir$class == PDS_data$PDS_direction)
+print(paste("PDS LDA Model Accuracy:", round(PDS_lda_accuracy, 3)))
+
+```
+
+## =========== QUESTION 4 ===========
+
+#### [**Quantile-Quantile Plots of Log-Returns vs. Normal Distribution**]
+
+The scatter plot below shows that the log returns of HP and PDS are
+quite correlated, and hence, seem to be generally following the blue y=x
+line. This means that on any given day, the log return of HP and PDS are
+likely to be 1:1 with some level of variance. There a small number of
+drastic outliers of huge negative and positive returns, however in those
+scenarios, HP and PDS generally still move equivalently. This has a lot
+to do with the fact that both these companies are in the same industry,
+same country, and have similar fundamental and financial
+characteristics.
+
+```{r QUESTION_4}
+
+plot(HP_log_returns2, PDS_log_returns2, 
+     main = "Scatter Plot of HP vs. PDS Log Returns",
+     xlab = "HP Log Returns", 
+     ylab = "PDS Log Returns", 
+     col = "orangered", 
+     pch = 16)
+     
+
+# add vertical and horizontal lines at 0
+abline(v = 0, col = "black", lty = 1, lwd = 2)  
+abline(h = 0, col = "black", lty = 1, lwd = 2)
+
+# blue dashed line at y = x
+abline(0, 1, col = "blue", lwd = 2, lty = 2) 
+
+```

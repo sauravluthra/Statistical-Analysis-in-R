@@ -1,0 +1,303 @@
+---
+title: "LuthraSauravPS4A"
+author: "Saurav Luthra"
+date: "2025-03-22"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 4A
+
+## =========== OVERVIEW ===========
+
+**HP :** Helmerich & Payne, Inc. (NYSE)
+
+**PDS :** Precision Drilling Corporation (NYSE)
+
+## =========== SETUP ===========
+
+```{r IMPORTS, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(copula)
+library(data.table)
+library(fGarch) 
+library(ggplot2)
+library(MASS)
+library(mnormt)
+library(quantmod)
+
+```
+
+```{r SETUP}
+
+# ==============================================================================
+# GET DATA AND SETUP FOR HP
+
+getSymbols("HP", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+HP_prices <- (HP$HP.Adjusted)
+
+HP_log_returns <- as.vector(diff(log(HP_prices))[-1])
+
+# ==============================================================================
+# GET DATA AND SETUP FOR PDS
+
+getSymbols("PDS", src = "yahoo", from = as.Date("2020-02-01", to = as.Date("2025-02-01")))
+
+PDS_prices <- (PDS$PDS.Adjusted)
+
+PDS_log_returns <- as.vector(diff(log(PDS_prices))[-1])
+
+```
+
+## =========== QUESTION 0 ===========
+
+#### [**HP Log Returns vs PDS Log Returns**]
+
+From Problem Set 3, Question 4:
+
+The scatter plot below shows that the log returns of HP and PDS are
+quite correlated, and hence, seem to be generally following the blue y=x
+line. This means that on any given day, the log return of HP and PDS are
+likely to be 1:1 with some level of variance. There are a small number
+of drastic outliers of huge negative and positive returns, however in
+those scenarios, HP and PDS generally still move equivalently. This has
+a lot to do with the fact that both these companies are in the same
+industry, same country, and have similar fundamental and financial
+characteristics.
+
+```{r QUESTION_0, warning=FALSE}
+
+# ==============================================================================
+# SCATTER PLOT HP LOG-RETURNS VS PDS LOG RETURNS
+
+plot(HP_log_returns, PDS_log_returns, 
+     main = "Scatter Plot of HP vs. PDS Log Returns",
+     xlab = "HP Log Returns", 
+     ylab = "PDS Log Returns", 
+     col = "purple",
+     pch = 16)
+     
+# add vertical and horizontal lines at 0
+abline(v = 0, col = "black", lty = 1, lwd = 2)  
+abline(h = 0, col = "black", lty = 1, lwd = 2)
+
+# blue dashed line at y = x
+abline(0, 1, col = "blue", lwd = 2, lty = 2) 
+
+```
+
+## =========== QUESTION 1 ===========
+
+#### [**Bivariate T-Distribution**]
+
+For the pair (HP_log_returns, PDS_log_returns) we use the maximum
+likelihood method to fit a bivariate T-distribution to model the
+underlying pairs of log returns.
+
+1)  We search for the MLE of ν (degrees of freedom) between 2.5 - 4.49
+    in increments of 0.01 (200 values), generating a profile
+    log-likelihood graph with a 95% confidence interval.
+
+2)  Using that MLE of ν, the best fit for µ (mean vector) and Λ
+    (correlation matrix) were computed.
+
+The MLE was:
+
+**ν** = 3.33
+
+**µ** = [-0.000334 0.000240]
+
+**Λ** = [[1 0.668743], [0.668743 1]]
+
+**95% Confidence Interval** = (2.875, 3.875)
+
+**AIC_T** = 2.260616
+
+This seems to be a decent fit for the bivariate data, although, the
+confidence interval for the MLE of **ν** seems a little wide. At a width
+of 1.00, it seems like the true value of **ν** could vary a lot in
+relative terms. There was a similar size on the confidence interval on
+page 168 of the RM textbook, but the estimated **ν** was higher. The
+lower value of the **ν** MLE also further suggests that there is a high
+degree of outliers in the data, which we need fat tails to appropriately
+account for. This is in line with all previous analysis of the
+log-returns of HP and PDS, which also had fat tails, although those
+analyses only dealt with univariate T-distributions. Additionally, the
+mean vectors tells us that HP has a slightly average negative log-return
+whereas PDS has a slightly positive one. Their correlation is also
+pretty high in this case, however for small values of **ν** the true
+correlation is weaker than what Λ suggests.
+
+```{r QUESTION_1, warning=FALSE}
+
+# ==============================================================================
+# SETUP
+
+data   <- cbind(HP_log_returns, PDS_log_returns)
+df     <- seq(2.5, 4.49, 0.01)
+n      <- length(df)
+loglik <- rep(0, n)
+
+# number of parameters = df + means + unique cov terms (d(d+1)/2)
+k <- 1 + 2 + 3
+
+shift = 10780
+
+# ==============================================================================
+# GET LOG-LIKELIHOOD OF DIFFERENT VALUES OF NU (DOF)
+
+for(i in 1:n){
+  fit = cov.trob(data, nu = df[i])
+  loglik[i] = sum(log(dmt(data, mean = fit$center, S = fit$cov, df = df[i])))
+}
+
+# ==============================================================================
+# GET AIC_T
+
+aic_t = -2*max(loglik) + 2*k + shift
+cat("\nAIC_T: ", aic_t)
+
+# ==============================================================================
+# COMPUTE 95% CONFIDENCE INTERVAL
+
+z1 = (2*loglik > 2 *max(loglik) - qchisq(0.95, 1))
+cat("\nZ1 False Indices:\n ", which(z1 == FALSE))
+
+# ==============================================================================
+# PLOT PROFILE LOG-LIKELIHOOD VS. DOF
+
+plot(df, 2 * loglik - shift, type = "l", cex.axis = 1.5, cex.lab = 1.5, ylab = paste0("2 * loglikelihood - ", shift), lwd = 2)
+
+abline(h = 2 * max(loglik) - qchisq(0.95, 1) - shift)
+abline(h = 2 * max(loglik) - shift)
+
+abline(v = (df[38] + df[39]) / 2)
+abline(v = (df[138] + df[139]) / 2)
+
+cat("\nLower Bound: ",(df[38] + df[39]) / 2)
+cat("\nHigher Bound: ", (df[138] + df[139]) / 2)
+
+# ==============================================================================
+# OUTPUT BEST VALUE FOR DOF AND BIVARIATE T-DISTRIBUTION
+
+best_nu <- df[which.max(loglik)]
+bestfit <- cov.trob(data,nu=best_nu,cor=TRUE)
+
+cat("\nBest Value for DoF: ", best_nu)
+cat("\nBest Fit Mean Vector: ", bestfit$center)
+cat("\nBest Fit Correlation Matrix: ", bestfit$cor)
+```
+
+## =========== QUESTION 2 ===========
+
+#### [**Univariate T-Distributions**]
+
+Using the 'fitdistr' command from the 'MASS' library to fit 2 univariate
+t-distributions to each log return series. The following are the mean,
+scale parameter, standard deviation, and degrees of freedom of each
+fitted T-distribution. The DoF values are quite close to that of the
+bivariate distribution (3.33). Overally, both stocks have relatively
+similar univariate T-distributions across all parameters.
+
+**HP Log Returns T-Distribution:**
+
+Mean: -0.0001147878
+
+Scale Parameter: 0.02486408
+
+Degrees of Freedom: 3.371296
+
+Standard Deviation: 0.03898569
+
+**PDS Log Returns T-Distribution:**
+
+Mean: 0.0004078942
+
+Scale Parameter: 0.02755748
+
+Degrees of Freedom: 3.636176
+
+Standard Deviation: 0.04108155
+
+The standard deviation was computed using the scale parameter and
+degrees of freedom using the following:
+
+$$\sigma = s \times \sqrt{\frac{\nu}{\nu - 2}}$$
+
+```{r QUESTION_2, warning=FALSE}
+
+est_HP = as.numeric(fitdistr(HP_log_returns, "t")$estimate)
+std_HP <- est_HP[2] * sqrt(est_HP[3] / (est_HP[3] - 2))
+
+est_PDS = as.numeric(fitdistr(PDS_log_returns, "t")$estimate)
+std_PDS <- est_PDS[2] * sqrt(est_PDS[3] / (est_PDS[3] - 2))
+
+# print results
+cat("HP Log Returns:\n")
+cat("Mean:", est_HP[1], "\n")
+cat("Scale Parameter:", est_HP[2], "\n")
+cat("Degrees of Freedom:", est_HP[3], "\n")
+cat("Standard Deviation:", std_HP, "\n\n")
+
+cat("PDS Log Returns:\n")
+cat("Mean:", est_PDS[1], "\n")
+cat("Scale Parameter:", est_PDS[2], "\n")
+cat("Degrees of Freedom:", est_PDS[3], "\n")
+cat("Standard Deviation:", std_PDS, "\n")
+```
+
+## =========== QUESTION 3 ===========
+
+#### [**Sample Kendall's Tau Rank Correlation and Sample Pearson Correlation**]
+
+**Pearson correlation: 0.6747**
+
+**Kendall’s Tau: 0.4764**
+
+The correlation between the log-returns of HP and PDS, suggests a strong
+positive relationship. However, the difference between these values
+highlights key nuances in how each measure computes correlation. Pearson
+correlation captures linear dependence by comparing the raw log-return
+values, which makes it more sensitive to extreme values and outliers,
+like we have in this dataset. In contrast, Kendall’s Tau assesses rank
+correlation, only measuring how consistently one stock’s returns move
+relative to the other in an ordinal way, regardless of magnitude.
+Because Kendall’s Tau only considers **relative ordering** of returns
+rather than their actual numerical values, it tends to be **lower than
+Pearson** when in cases such as the log-return dataset where we have
+deviations from a strict monotonic relationship.
+
+While HP and PDS definitely tend to move in the same direction, the
+strength of their movements is not perfectly consistent. This could
+imply that while a positive return in HP generally corresponds with a
+positive return in PDS, there are instances where one stock’s gain is
+disproportionately larger or smaller than the other’s. This is clearly
+visible in QUESTION 0, in the scatter plot of HP log-returns vs PDS
+log-returns.
+
+Although the stocks are in the same country and industry,the gap between
+these two correlation values further show periods of nonlinearity
+between both log-returns response to market conditions. For example,
+since HP and PDS share common macroeconomic risk factors, they exhibit
+high linear correlation during broader market movements (the majority of
+returns) but weaker rank correlation when idiosyncratic or
+industry-specific factors dominate.
+
+```{r QUESTION_3, warning=FALSE}
+
+# Pearson correlation
+paste0("Pearson Correlation: ", cor(HP_log_returns, PDS_log_returns, method = "pearson"))
+# cor.test(HP_log_returns, PDS_log_returns, method = "pearson")
+
+# Kendall's Tau correlation
+paste0("Kendall's Tau Correlation:", cor(HP_log_returns, PDS_log_returns, method = "kendall"))
+# cor.test(HP_log_returns, PDS_log_returns, method = "kendall")
+
+```

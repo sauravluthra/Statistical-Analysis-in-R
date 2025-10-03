@@ -1,0 +1,284 @@
+---
+title: "LuthraSauravPS1"
+author: "Saurav Luthra"
+date: "2025-01-23"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# SAURAV LUTHRA, MTH643 PROBLEM SET 1
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview.
+
+In each of the three following questions, different stochastic processes
+**(W, V, U)** are simulated. Each stochastic process is the cumulative
+sum of a series of random underlying variables **(X, Y, Z)**. Each
+simulation path has 200 time steps over which its value evolves. 10,000
+simulations were run for each process to get a large sample size. These
+simulation were then used to estimate the probability of these
+outcomes:\
+\
+I. The ending value of the process (200^th^ time step) is ≥ 10.
+
+II) The maximum value over the entire process path is ≥ 10.
+
+Using binomial/normal probability distributions, the theoretical
+probabilities of these outcomes was also found.
+
+## QUESTION 1.
+
+#### [**Stochastic Process W**]{.underline}
+
+Simulating the following process,
+
+$$W_k = X_1 + ... + X_k$$
+$$X_k = \begin{cases} +1, & \text{p = 0.50 } \\-1, & \text{p = 0.50 } \\\end{cases}$$
+
+**By simulation the probabilities were:**
+
+P (W~200~ ≥ 10) = 0.2615
+
+P (W~max~ ≥ 10) = 0.4759
+
+**The theoretical probability is:**
+
+P (W~200~ ≥ 10) = 0.2623112
+
+which is very similar to the result that was obtained by simulation.
+
+```{r QUESTION_1}
+
+# ==============================================================================
+# SETUP
+
+# simulation parameters
+simulations <- 10000
+numsteps    <- 200
+
+# array of random Bernoulli (-1 or 1) variable arrays
+Xarrs   <- list()
+# array of W-paths (arrays) using cumsum() 
+Warrs   <- list()
+# array of all final ending simulation values (W200)
+W200Arr <- list()
+# array of max values of each simulation
+WmaxArr <- list()
+
+# ==============================================================================
+# SIMULATION
+
+# generate simulation results and record ending and max values for W
+for (i in 1:simulations) {
+  Xarrs[[i]] <- 2 * rbinom(numsteps, 1, 0.5) - 1 
+  Warrs[[i]] <- cumsum(Xarrs[[i]])
+  W200Arr[[i]] <- Warrs[[i]][numsteps]
+  WmaxArr[[i]] <- max(Warrs[[i]])
+}
+
+# ==============================================================================
+# OUTPUT SIMULATION RESULTS
+
+# Plot 25 example simulation paths
+plot(Warrs[[1]], type = "l", col = 1, lwd = 2, xlab = "Index", ylab = "value of W", main = "W", ylim = c(-30, 30))
+for (i in 2:25) {
+  lines(Warrs[[i]], col = i, lwd = 2)
+}
+abline(h = 0, col = "black", lty = 1, lwd = 2)
+abline(h = 10, col = "red", lty = 2, lwd = 2)
+
+# output number of W200 values that are >= 10
+W200count <- sum(W200Arr >= 10)
+cat("\nW200 Count/Simulations = ", W200count, "/", simulations)
+cat("\nP[W200 >= 10]          = ", (W200count/simulations))
+
+# output the number of Wmax values that are >= 10
+Wmaxcount <- sum(WmaxArr >= 10)
+cat("\n\nWmax Count/Simulations = ", Wmaxcount, "/", simulations)
+cat("\nP[Wmax >= 10]          = ", (Wmaxcount/simulations))
+
+# ==============================================================================
+# THORETICAL VALUES
+
+# for W200 to be >= 10, we need at least 10 more up-moves than down-moves
+# we need to count the probability that: up-moves - down-moves >= 10
+# in the case of 200 steps, we need the probability of getting >=105 up-moves (meaning <=95 down-moves)
+
+probability <- pbinom(104, 200, 0.5, lower.tail = FALSE)
+cat("\n\nTheoretical Probability of W200 >= 10: ", probability)
+```
+
+## QUESTION 2.
+
+#### [**Stochastic Process V**]{.underline}
+
+Simulate the following stochastic process,
+
+$$V_k = Y_1 + ... + Y_k$$
+$$Y_k = \begin{cases} +1, & \text{p = 0.55 } \\-1, & \text{p = 0.45 } \\\end{cases}$$
+
+**By simulation the probabilities were:**
+
+P (V~200~ ≥ 10) = 0.7890
+
+P (V~max~ ≥ 10) = 0.8933
+
+**The theoretical probability is:**
+
+P (V~200~ ≥ 10) = 0.78305
+
+which is very similar to the result that was obtained by simulation.
+
+```{r QUESTION_2}
+
+# ==============================================================================
+# SETUP
+
+# simulation parameters
+simulations <- 10000
+numsteps    <- 200
+
+# array of random Bernoulli (-1 or 1) variable arrays
+Yarrs   <- list()
+# array of V-paths (arrays) using cumsum() 
+Varrs   <- list()
+# array of all final ending simulation values (V200)
+V200Arr <- list()
+# array of max values of each simulation
+VmaxArr <- list()
+
+# ==============================================================================
+# SIMULATION
+
+# Generate simulation results and find ending and max values for V
+for (i in 1:simulations) {
+  Yarrs[[i]] <- 2 * rbinom(numsteps, 1, 0.55) - 1 
+  Varrs[[i]] <- cumsum(Yarrs[[i]])
+  V200Arr[[i]] <- Varrs[[i]][numsteps]
+  VmaxArr[[i]] <- max(Varrs[[i]])
+}
+
+# ==============================================================================
+# OUTPUT SIMULATION RESULTS
+
+# Plot 25 example simulation paths
+plot(Varrs[[1]], type = "l", col = 1, lwd = 2, xlab = "Index", ylab = "value of V", main = "V", ylim = c(-30, 60))
+for (i in 2:25) {
+  lines(Varrs[[i]], col = i, lwd = 2)
+}
+abline(h = 0, col = "black", lty = 1, lwd = 2)
+abline(h = 10, col = "red", lty = 2, lwd = 2)
+
+# output number of V200 values that are >= 10
+V200count <- sum(V200Arr >= 10)
+cat("\nV200 Count/Simulations = ", V200count, "/", simulations)
+cat("\nP[V200 >= 10]          = ", (V200count/simulations))
+
+# output the number of Vmax values that are >= 10
+Vmaxcount <- sum(VmaxArr >= 10)
+cat("\n\nVmax Count/Simulations = ", Vmaxcount, "/", simulations)
+cat("\nP[Vmax >= 10]          = ", (Vmaxcount/simulations))
+
+# ==============================================================================
+# THORETICAL VALUES
+
+# for V200 to be >= 10, the we need at least 10 more up-moves than down-moves
+# we need to count the probability that: up-moves - down-moves >= 10
+# in the case of 200 steps, we need the probability of getting >=105 up-moves (meaning <=95 down-moves)
+
+probability <- pbinom(104, 200, 0.55, lower.tail = FALSE)
+cat("\n\nTheoretical Probability of V200 >= 10: ", probability)
+```
+
+## QUESTION 3.
+
+#### [**Stochastic Process U**]{.underline}
+
+Simulate the following process,
+
+$$U_k = Z_1 + ... + Z_k$$ $$Z_k \sim N(0,1)$$
+
+Being the sum of 200 standard normal random variables, U~200~ is a
+normal random variable with mean 0 and variance
+200.$$U_{200} = \sum_{k=1}^{200}Z_k \sim N(0,200) $$
+
+**By simulation the probabilities were:**
+
+P (U~200~ ≥ 10) = 0.2441
+
+P (U~max~ ≥ 10) = 0.4545
+
+**The theoretical probability is:**
+
+P (U~200~ ≥ 10) = 0.2397501
+
+which is very similar to the result that was obtained by simulation.
+
+```{r QUESTION_3}
+
+# ==============================================================================
+# SETUP
+
+# simulation parameters
+simulations <- 10000
+numsteps    <- 200
+
+# array of random std-normal variable arrays
+Zarrs   <- list()
+# array of U-paths (arrays) using cumsum() 
+Uarrs   <- list()
+# array of all final ending simulation values (U200)
+U200Arr <- list()
+# array of max values of each simulation
+UmaxArr <- list()
+
+# ==============================================================================
+# SIMULATION
+
+# Generate simulation results and find ending and max values for U
+for (i in 1:simulations) {
+  Zarrs[[i]]   <- rnorm(numsteps)
+  Uarrs[[i]]   <- cumsum(Zarrs[[i]])
+  U200Arr[[i]] <- Uarrs[[i]][numsteps]
+  UmaxArr[[i]] <- max(Uarrs[[i]])
+}
+
+# ==============================================================================
+# OUTPUT SIMULATION RESULTS
+
+# Plot 25 example simulation paths
+plot(Uarrs[[1]], type = "l", col = 1, lwd = 2, xlab = "Index", ylab = "value of U", main = "U", ylim = c(-30, 60))
+for (i in 2:25) {
+  lines(Uarrs[[i]], col = i, lwd = 2)
+}
+abline(h = 0, col = "black", lty = 1, lwd = 2)
+abline(h = 10, col = "red", lty = 2, lwd = 2)
+
+# output number of U200 values that are >= 10
+U200count <- sum(U200Arr >= 10)
+cat("\nU200 Count/Simulations = ", U200count, "/", simulations)
+cat("\nP[U200 >= 10]          = ", (U200count/simulations))
+
+# output the number of Umax values that are >= 10
+Umaxcount <- sum(UmaxArr >= 10)
+cat("\n\nUmax Count/Simulations = ", Umaxcount, "/", simulations)
+cat("\nP[Umax >= 10]          = ", (Umaxcount/simulations))
+
+# ==============================================================================
+# THORETICAL VALUES
+
+# since U200 = Z1 + Z2 + ... + Z200, we can express U200 as the sum of 200 independent standard-normal random variables.
+# Thus, U200 itself is a normal random variable
+# mu = 0
+# var(U200) = 200 x 1 = 200
+
+probability <- pnorm(10, mean=0, sd=sqrt(200), lower.tail = FALSE)
+cat("\n\nTheoretical Probability of U200 >= 10: ", probability)
+```
